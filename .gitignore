@@ -1,2 +1,5 @@
 my_pipeline/
-unit1/mnist/MNIST/raw
+butterfly_pipeline/
+mnist/
+unit1/acelerate-butterflies-x64
+runs/
