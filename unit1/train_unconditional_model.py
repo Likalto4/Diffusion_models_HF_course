@@ -32,7 +32,7 @@ from tqdm.auto import tqdm
 
 
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
-#check_min_version("0.13.0.dev0")
+check_min_version("0.13.0.dev0")
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -56,7 +56,10 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Simple example of a training script.")
+    parser = argparse.ArgumentParser(
+        prog="train_unconditional_model.py",
+        description="Simple example of a training script.",
+        epilog="For more information, check out Hugging face's diffusers course.")
     parser.add_argument(
         "--dataset_name",
         type=str,
@@ -232,12 +235,13 @@ def parse_args():
             ' `--checkpointing_steps`, or `"latest"` to automatically select the last available checkpoint.'
         ),
     )
-
+    #place the extracted data in a namespace object
     args = parser.parse_args()
+    #get and set the local rank
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
     if env_local_rank != -1 and env_local_rank != args.local_rank:
         args.local_rank = env_local_rank
-
+    #raise error if no dataset is provided
     if args.dataset_name is None and args.train_data_dir is None:
         raise ValueError("You must specify either a dataset name from the hub or a train data directory.")
 
@@ -245,6 +249,16 @@ def parse_args():
 
 
 def get_full_repo_name(model_id: str, organization: Optional[str] = None, token: Optional[str] = None):
+    """gets the full repository name coming from the Hugging face hub
+
+    Args:
+        model_id (str): the name of the model
+        organization (Optional[str], optional): organization name if user name is not provided. Defaults to None.
+        token (Optional[str], optional): gte token if is not provided. Defaults to None.
+
+    Returns:
+        str: full repository name
+    """
     if token is None:
         token = HfFolder.get_token()
     if organization is None:
@@ -253,6 +267,7 @@ def get_full_repo_name(model_id: str, organization: Optional[str] = None, token:
     else:
         return f"{organization}/{model_id}"
 
+##define main function
 
 def main(args):
     logging_dir = os.path.join(args.output_dir, args.logging_dir)
@@ -486,7 +501,7 @@ def main(args):
                     loss = F.mse_loss(model_output, noise)  # this could have different weights!
                 elif args.prediction_type == "sample":
                     alpha_t = _extract_into_tensor(
-                        noise_scheduler.alphas_cumprod, timesteps, (clean_images.shape[0], 1, 1, 1)
+                        noise_scheduler.alphas_cumprod, timesteps, (bsz, 1, 1, 1)
                     )
                     snr_weights = alpha_t / (1 - alpha_t)
                     loss = snr_weights * F.mse_loss(
