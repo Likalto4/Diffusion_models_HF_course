@@ -1,3 +1,12 @@
+#Add repo path to the system path
+from pathlib import Path
+import os
+import sys
+repo_path= Path.cwd().resolve().parent
+repo_list = os.listdir(repo_path)
+raise Exception('The parent directory is not the root directory of the repo') if '.gitignore' not in repo_list else print('All good regarding paths\n')
+sys.path.insert(0,str(repo_path))
+
 #Libraries
 import torch
 import torch.nn.functional as F
