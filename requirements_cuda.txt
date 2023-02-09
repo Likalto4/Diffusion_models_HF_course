@@ -67,7 +67,8 @@ datasets=2.9.0=pypi_0
 debugpy=1.5.1=py38h295c915_0
 decorator=5.1.1=pyhd3eb1b0_0
 defusedxml=0.7.1=pypi_0
-diffusers=0.13.0.dev0=pypi_0
+# This package was installed from source.
+# diffusers=0.13.0.dev0=pypi_0
 dill=0.3.6=pypi_0
 entrypoints=0.4=py38h06a4308_0
 executing=0.8.3=pyhd3eb1b0_0
