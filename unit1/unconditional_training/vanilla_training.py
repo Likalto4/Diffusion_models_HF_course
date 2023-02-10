@@ -4,7 +4,7 @@ import os
 import sys
 repo_path= Path.cwd().resolve().parent
 repo_list = os.listdir(repo_path)
-raise Exception('The parent directory is not the root directory of the repo') if '.gitignore' not in repo_list else print('All good regarding paths\n')
+if '.gitignore' not in repo_list: raise Exception('The parent directory is not the root directory of the repo')
 sys.path.insert(0,str(repo_path))
 
 #Libraries
@@ -24,7 +24,7 @@ from diffusers import DDPMPipeline
 ######MAIN######
 def main():
     # GPU selection
-    selected_gpu = 0 # here you select the GPU used (0, 1 or 2)
+    selected_gpu = 0 #select the GPU to use
     device = torch.device("cuda:" + str(selected_gpu) if torch.cuda.is_available() else "cpu")
     print(f'The device is: {device}\n')
 
@@ -39,14 +39,15 @@ def main():
     preprocess = transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),  # Resize
-            transforms.RandomHorizontalFlip(),  # Randomly flip (data augmentation)
+            transforms.RandomHorizontalFlip(),  # Horizontal randomly flip (data augmentation)
             transforms.ToTensor(),  # Convert to tensor (0, 1)
-            transforms.Normalize([0.5], [0.5]),  # Map to (-1, 1)
+            transforms.Normalize([0.5], [0.5]),  # Map to (-1, 1) as a way to make data more similar to a Gaussian distribution
         ]
     )
     def transform(batch_dict):
         """Transform the images in the dataset to the desired format, this generates a dictionary with the key "images" containing the images in a list.
-        It should include a formatting function as preproces. A formatting function is a callable that akes a batch as (dict) and returns a batch also as (dict).
+        It should include a formatting function as preproces. A formatting function is a callable that takes a batch as (dict) and returns a batch also as (dict).
+        The formatting function is defined outside of the function (not self-contained)
 
         Args:
             batch_dict (dict): dictionary containing the images in a list under the key "image"
@@ -56,6 +57,7 @@ def main():
         """
         images = [preprocess(image.convert("RGB")) for image in batch_dict["image"]]
         return {"images": images}
+    
     #set the transform function to the dataset
     dataset.set_transform(transform)
     # Create the dataloader
@@ -69,9 +71,11 @@ def main():
         in_channels=3,  # the number of input channels, 3 for RGB images
         out_channels=3,  # the number of output channels
         layers_per_block=2,  # how many ResNet layers to use per UNet block
-        block_out_channels=(64, 128, 128, 256),  # More channels -> more parameters
+        block_out_channels=(128, 128, 256, 265, 512, 512),  # More channels -> more parameters
         down_block_types=(
             "DownBlock2D",  # a regular ResNet downsampling block
+            "DownBlock2D",
+            "DownBlock2D",
             "DownBlock2D",
             "AttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
             "AttnDownBlock2D",
@@ -81,6 +85,8 @@ def main():
             "AttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
             "UpBlock2D",
             "UpBlock2D",  # a regular ResNet upsampling block
+            "UpBlock2D",
+            "UpBlock2D",
         ),
     )
     model.to(device) # send the model to the GPU
@@ -158,7 +164,7 @@ def main():
     # create the pipeline for generating images using the trained model
     image_pipe = DDPMPipeline(unet=model, scheduler=noise_scheduler)
     # save the pipeline
-    image_pipe.save_pretrained("butterfly_pipeline")
+    image_pipe.save_pretrained(str(repo_path / 'unit1' / 'pipelines' /'butterfly_pipeline'))
     
     print("The model has been saved.")
 
