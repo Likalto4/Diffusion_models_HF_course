@@ -1,10 +1,9 @@
 #Add repo path to the system path
 from pathlib import Path
-import os
-import sys
-repo_path= Path.cwd().resolve().parent
+import os, sys
+repo_path= Path.cwd().resolve().parent.parent
 repo_list = os.listdir(repo_path)
-if '.gitignore' not in repo_list: raise Exception('The parent directory is not the root directory of the repo')
+if '.gitignore' not in repo_list: raise Exception('The parent directory is not the root directory of the repository')
 sys.path.insert(0,str(repo_path))
 
 #Libraries
@@ -71,7 +70,7 @@ def main():
         in_channels=3,  # the number of input channels, 3 for RGB images
         out_channels=3,  # the number of output channels
         layers_per_block=2,  # how many ResNet layers to use per UNet block
-        block_out_channels=(128, 128, 256, 265, 512, 512),  # More channels -> more parameters
+        block_out_channels=(128, 128, 256, 256, 512, 512),  # More channels -> more parameters
         down_block_types=(
             "DownBlock2D",  # a regular ResNet downsampling block
             "DownBlock2D",

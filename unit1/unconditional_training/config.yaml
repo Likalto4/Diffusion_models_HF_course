@@ -1,0 +1,15 @@
+# configuration file for the unconditional training
+
+# 1. Image processing
+dataloading:
+  # image size or resolution to resize
+  resolution: 64
+  # batch size for dataloader
+  batch_size: 64
+
+# 2. Model
+model:
+  in_channels: 3
+  out_channels: 3
+  layers_per_block: 2
+  block_out_channels: 
