@@ -3,10 +3,12 @@
 # 1. Image processing
 processing:
   # image size or resolution to resize
-  resize_x: 64
-  resize_y: 64
+  resolution: 64
+  interpolation: "BILINEAR"
   # batch size for dataloader
-  batch_size: 64
+  batch_size: 32
+  # number of workers for dataloader
+  num_workers: 0 # 0 means no extra processes are used (run in main process)
 
 # 2. Model
 model:
@@ -26,9 +28,9 @@ model:
   - "DownBlock2D"
   - "DownBlock2D"
   - "AttnDownBlock2D"  # a ResNet downsampling block with spatial self-attention
-  - "AttnDownBlock2D"
+  - "DownBlock2D" # originaly a attention block, changed to a regular block
   up_block_types: !!python/tuple # Describes the type of block to use for upsampling
-  - "AttnUpBlock2D"
+  - "UpBlock2D"
   - "AttnUpBlock2D"  # a ResNet upsampling block with spatial self-attention
   - "UpBlock2D"
   - "UpBlock2D"  # a regular ResNet upsampling block
@@ -38,15 +40,19 @@ model:
 # 3. Training
 training:
   num_epochs: 50 # Number of epochs to train for
+  gradient_accumulation_steps: 1 # Number of gradient accumulation steps
   optimizer:
-    learning_rate: 4.0e-4 # Learning rate for the optimizer
+    learning_rate: 1.0e-4 # Learning rate for the optimizer
     beta_1: 0.95 # Beta 1 for the AdamW optimizer
     beta_2: 0.999 # Beta 2 for the AdamW optimizer
     weight_decay: 1.0e-6
     eps: 1.0e-8
+  lr_scheduler:
+    name: "cosine"
+    num_warmup_steps: 1000
   noise_scheduler:
     num_train_timesteps: 1000
-    beta_schedule: "squaredcos_cap_v2"
+    beta_schedule: "linear" # originally using "squaredcos_cap_v2", changed to linear
 
 # 4. Saving and logging
 saving:
