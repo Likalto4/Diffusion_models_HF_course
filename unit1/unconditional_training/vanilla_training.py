@@ -7,6 +7,7 @@ if '.gitignore' not in repo_list: raise Exception('The parent directory is not t
 sys.path.insert(0,str(repo_path))
 
 #Libraries
+import yaml
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -27,17 +28,21 @@ def main():
     device = torch.device("cuda:" + str(selected_gpu) if torch.cuda.is_available() else "cpu")
     print(f'The device is: {device}\n')
 
-    ###1. Dataset loading and preprocessing
+    #load the config file
+    with open('config.yaml') as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
 
+    ###1. Dataset loading and preprocessing
     # Hyperparameters
-    image_size = 64
-    batch_size = 64
+    resize_x = config['processing']['resize_x']
+    resize_y = config['processing']['resize_y']
+    batch_size = config['processing']['batch_size']
     # Dataset loading
     dataset = load_dataset("huggan/smithsonian_butterflies_subset", split="train")
     # Define data augmentations
     preprocess = transforms.Compose(
         [
-            transforms.Resize((image_size, image_size)),  # Resize
+            transforms.Resize((resize_x, resize_y)),  # Resize
             transforms.RandomHorizontalFlip(),  # Horizontal randomly flip (data augmentation)
             transforms.ToTensor(),  # Convert to tensor (0, 1)
             transforms.Normalize([0.5], [0.5]),  # Map to (-1, 1) as a way to make data more similar to a Gaussian distribution
@@ -66,45 +71,33 @@ def main():
 
     ###2. Model definition
     model = UNet2DModel(
-        sample_size=image_size,  # the target image resolution
-        in_channels=3,  # the number of input channels, 3 for RGB images
-        out_channels=3,  # the number of output channels
-        layers_per_block=2,  # how many ResNet layers to use per UNet block
-        block_out_channels=(128, 128, 256, 256, 512, 512),  # More channels -> more parameters
-        down_block_types=(
-            "DownBlock2D",  # a regular ResNet downsampling block
-            "DownBlock2D",
-            "DownBlock2D",
-            "DownBlock2D",
-            "AttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
-            "AttnDownBlock2D",
-        ),
-        up_block_types=(
-            "AttnUpBlock2D",
-            "AttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
-            "UpBlock2D",
-            "UpBlock2D",  # a regular ResNet upsampling block
-            "UpBlock2D",
-            "UpBlock2D",
-        ),
+        sample_size=(resize_x, resize_y),  # the target image resolution
+        in_channels=config['model']['in_channels'],  # the number of input channels, 3 for RGB images
+        out_channels=config['model']['out_channels'],  # the number of output channels
+        layers_per_block=config['model']['layers_per_block'],  # how many ResNet layers to use per UNet block
+        block_out_channels=config['model']['block_out_channels'],  # More channels -> more parameters
+        down_block_types= config['model']['down_block_types'],
+        up_block_types=config['model']['up_block_types'],
     )
     model.to(device) # send the model to the GPU
 
     ###3. Training
     # Hyperparameters
-    num_epochs = 50
+    num_epochs = config['training']['num_epochs']
     #AdamW optimizer
-    learning_rate = 4e-4
-    beta_1 = 0.95
-    beta_2 = 0.999
+    learning_rate = config['training']['optimizer']['learning_rate']
+    beta_1 = config['training']['optimizer']['beta_1']
+    beta_2 = config['training']['optimizer']['beta_2']
+    weight_decay = config['training']['optimizer']['weight_decay']
+    eps = config['training']['optimizer']['eps']
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate,
-        betas=(beta_1, beta_2), weight_decay=1e-6,
-        eps=1e-8
+        betas=(beta_1, beta_2), weight_decay=weight_decay,
+        eps=eps
     )
     # Set the noise scheduler
-    num_train_timesteps = 1000
-    beta_schedule = "squaredcos_cap_v2"
+    num_train_timesteps = config['training']['noise_scheduler']['num_train_timesteps']
+    beta_schedule = config['training']['noise_scheduler']['beta_schedule']
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=num_train_timesteps, beta_schedule=beta_schedule
     )
@@ -163,7 +156,7 @@ def main():
     # create the pipeline for generating images using the trained model
     image_pipe = DDPMPipeline(unet=model, scheduler=noise_scheduler)
     # save the pipeline
-    image_pipe.save_pretrained(str(repo_path / 'unit1' / 'pipelines' /'butterfly_pipeline'))
+    image_pipe.save_pretrained(str(repo_path / config['saving']['pipeline_dir'] / config['saving']['pipeline_name']))
     
     print("The model has been saved.")
 

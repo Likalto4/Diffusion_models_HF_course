@@ -1,28 +1,57 @@
 # configuration file for the unconditional training
 
 # 1. Image processing
-preprocessing:
+processing:
   # image size or resolution to resize
-  resolution: 64
+  resize_x: 64
+  resize_y: 64
   # batch size for dataloader
   batch_size: 64
 
 # 2. Model
 model:
-  in_channels: 3
-  out_channels: 3
-  layers_per_block: 2
-  block_out_channels: !!python/tuple
+  in_channels: 3 # The number of channels in the input image, RGB -> 3
+  out_channels: 3 # The number of channels in the output image, RGB -> 3
+  layers_per_block: 2 # How many ResNet layers to use in each Unet block
+  block_out_channels: !!python/tuple # The output channels for each block # More channels -> more parameters # The length of this tuple is the number of blocks
+  - 128
+  - 128
+  - 256
+  - 256
+  - 512
+  - 512  
+  down_block_types: !!python/tuple # Describes the type of block to use for downsampling
   - "DownBlock2D"  # a regular ResNet downsampling block
   - "DownBlock2D"
   - "DownBlock2D"
   - "DownBlock2D"
   - "AttnDownBlock2D"  # a ResNet downsampling block with spatial self-attention
   - "AttnDownBlock2D"
-  up_block_types: !!python/tuple
-  - "AttnUpBlock2D",
-  - "AttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
-  - "UpBlock2D",
-  - "UpBlock2D",  # a regular ResNet upsampling block
-  - "UpBlock2D",
-  - "UpBlock2D",
+  up_block_types: !!python/tuple # Describes the type of block to use for upsampling
+  - "AttnUpBlock2D"
+  - "AttnUpBlock2D"  # a ResNet upsampling block with spatial self-attention
+  - "UpBlock2D"
+  - "UpBlock2D"  # a regular ResNet upsampling block
+  - "UpBlock2D"
+  - "UpBlock2D"
+
+# 3. Training
+training:
+  num_epochs: 50 # Number of epochs to train for
+  optimizer:
+    learning_rate: 4.0e-4 # Learning rate for the optimizer
+    beta_1: 0.95 # Beta 1 for the AdamW optimizer
+    beta_2: 0.999 # Beta 2 for the AdamW optimizer
+    weight_decay: 1.0e-6
+    eps: 1.0e-8
+  noise_scheduler:
+    num_train_timesteps: 1000
+    beta_schedule: "squaredcos_cap_v2"
+
+# 4. Saving and logging
+saving:
+  pipeline_name: 'butterfly_pipeline' # Name of the pipeline
+  pipeline_dir: 'unit1/pipelines' # Directory to save pipeline to
+  hf:
+    repo_name: 'Unconditional_Butterflies_diffusion' # Name of the repo
+    model_card_path: 'unit1/unconditional_training/model_card.yaml' # Path to model card
