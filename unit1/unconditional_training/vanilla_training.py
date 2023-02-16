@@ -108,7 +108,7 @@ def main():
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=num_train_timesteps, beta_schedule=beta_schedule
     )
-
+    
     # Training loop
     # Create a summary writer
     writer = SummaryWriter()
