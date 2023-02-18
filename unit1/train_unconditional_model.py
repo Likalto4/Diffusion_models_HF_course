@@ -287,9 +287,11 @@ def main(args):
     )
     logger.info(accelerator.state, main_process_only=False)
     if accelerator.is_local_main_process:
+        print('accelerate is local main process')
         datasets.utils.logging.set_verbosity_warning()
         diffusers.utils.logging.set_verbosity_info()
     else:
+        print('accelerate is not local main process')
         datasets.utils.logging.set_verbosity_error()
         diffusers.utils.logging.set_verbosity_error()
 
@@ -309,6 +311,7 @@ def main(args):
                 if "epoch_*" not in gitignore:
                     gitignore.write("epoch_*\n")
         elif args.output_dir is not None:
+            print('A local copy of the model will be saved in the output directory')
             os.makedirs(args.output_dir, exist_ok=True)
 
     # Initialize the model
@@ -338,6 +341,7 @@ def main(args):
 
     # Create EMA for the model.
     if args.use_ema:
+        print('using EMA')
         ema_model = EMAModel(
             model.parameters(),
             decay=args.ema_max_decay,
@@ -345,10 +349,13 @@ def main(args):
             inv_gamma=args.ema_inv_gamma,
             power=args.ema_power,
         )
+    else:
+        print('not using EMA')
 
     # Initialize the scheduler
     accepts_prediction_type = "prediction_type" in set(inspect.signature(DDPMScheduler.__init__).parameters.keys())
     if accepts_prediction_type:
+        print(f'The prediction type {args.prediction_type} is used')
         noise_scheduler = DDPMScheduler(
             num_train_timesteps=args.ddpm_num_steps,
             beta_schedule=args.ddpm_beta_schedule,
@@ -425,8 +432,8 @@ def main(args):
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
-        run = os.path.split(__file__)[-1].split(".")[0]
-        accelerator.init_trackers(run)
+        run = os.path.split(__file__)[-1].split(".")[0] # gets the name of the script
+        accelerator.init_trackers(run) #sets name of script as run name (for tracker)
 
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -467,7 +474,8 @@ def main(args):
             resume_global_step = global_step * args.gradient_accumulation_steps
             first_epoch = global_step // num_update_steps_per_epoch
             resume_step = resume_global_step % (num_update_steps_per_epoch * args.gradient_accumulation_steps)
-
+    else:
+        logger.info('Training from scratch')
     # Train!
     for epoch in range(first_epoch, args.num_epochs):
         model.train()
@@ -531,8 +539,10 @@ def main(args):
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
-
+            # logging
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
+            #in tensorboard
+            accelerator.log({"Loss/train": loss.detach().item()}, step=global_step)
             if args.use_ema:
                 logs["ema_decay"] = ema_model.decay
             progress_bar.set_postfix(**logs)

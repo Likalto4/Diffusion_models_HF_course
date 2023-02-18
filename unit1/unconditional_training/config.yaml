@@ -2,6 +2,8 @@
 
 # 1. Image processing
 processing:
+  # dataset name
+  dataset_name: "huggan/smithsonian_butterflies_subset"
   # image size or resolution to resize
   resolution: 64
   interpolation: "BILINEAR"
@@ -49,7 +51,7 @@ training:
     eps: 1.0e-8
   lr_scheduler:
     name: "cosine"
-    num_warmup_steps: 1000
+    num_warmup_steps: 500
   noise_scheduler:
     num_train_timesteps: 1000
     beta_schedule: "linear" # originally using "squaredcos_cap_v2", changed to linear
@@ -61,3 +63,5 @@ saving:
   hf:
     repo_name: 'Unconditional_Butterflies_diffusion' # Name of the repo
     model_card_path: 'unit1/unconditional_training/model_card.yaml' # Path to model card
+logging:
+  logging_dir_name: 'logs' # Name of the logging directory

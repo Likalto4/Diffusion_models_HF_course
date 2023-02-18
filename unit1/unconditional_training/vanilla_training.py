@@ -26,10 +26,10 @@ from torch.utils.tensorboard import SummaryWriter
 from diffusers import UNet2DModel, DDPMScheduler
 from diffusers import DDPMPipeline
 from diffusers.optimization import get_scheduler
+from diffusers.utils import check_min_version
 
-
-#####Functions
-
+# Check the diffusers version
+check_min_version("0.13.0.dev0")
 
 ######MAIN######
 def main():
@@ -44,11 +44,11 @@ def main():
 
     ### 1. Dataset loading and preprocessing
     # Dataset loading
-    dataset = load_dataset("huggan/smithsonian_butterflies_subset", split="train")
+    dataset = load_dataset(config['processing']['dataset_name'], split="train")
     # Define data augmentations
     preprocess = Compose(
         [
-            Resize((config['processing']['resolution']), interpolation= getattr(InterpolationMode, config['processing']['interpolation'])),  # Smaller edge is resized to 256 preserving aspect ratio
+            Resize((config['processing']['resolution']), interpolation= InterpolationMode.BILINEAR), #getattr(InterpolationMode, config['processing']['interpolation'])),  # Smaller edge is resized to 256 preserving aspect ratio
             CenterCrop((config['processing']['resolution'])),  # Center crop to the desired squared resolution
             RandomHorizontalFlip(),  # Horizontal randomly flip (data augmentation)
             ToTensor(),  # Convert to tensor (0, 1)
@@ -106,7 +106,7 @@ def main():
         num_warmup_steps= config['training']['lr_scheduler']['num_warmup_steps'] * config['training']['gradient_accumulation_steps'],
         num_training_steps= (len(train_dataloader) * num_epochs), #* config['training']['gradient_accumulation_steps']?
     )
-    # Set the noise scheduler
+    # Noise scheduler
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=config['training']['noise_scheduler']['num_train_timesteps'],
         beta_schedule=config['training']['noise_scheduler']['beta_schedule'],
@@ -120,11 +120,24 @@ def main():
     print(f'The number of examples is: {len(dataset)}\n')
     print(f'The number of epochs is: {num_epochs}\n')
     print(f'The number of batches is: {len(train_dataloader)}\n')
-    print(f'The number of update steps per epoch is: {num_update_steps_per_epoch}\n')
+    print(f'The batch size is: {config["processing"]["batch_size"]}\n')
+    # print(f'The number of update steps per epoch is: {num_update_steps_per_epoch}\n')
     print(f'Total optimization steps: {max_train_steps}\n')
+    
+    # separator
+    print('----------------------------------------\n')
+    print('the model hyperparameters are:\n')
+    # resolution
+    print(f'resolution: {config["processing"]["resolution"]}\n')
+    # gradient accumulation steps
+    print(f'gradient accumulation steps: {config["training"]["gradient_accumulation_steps"]}\n')
+    # learning rate
+    print(f'learning rate: {config["training"]["optimizer"]["learning_rate"]}\n')
+    # learning rate warmup steps
+    print(f'learning rate warmup steps: {config["training"]["lr_scheduler"]["num_warmup_steps"]}\n')
 
     # Training loop
-    # Create a summary writer
+    # Create a TB summary writer
     writer = SummaryWriter()
     # Loop over the epochs
     for epoch in range(num_epochs):
