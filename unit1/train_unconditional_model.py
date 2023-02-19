@@ -366,7 +366,6 @@ def main(args):
             beta_schedule=args.ddpm_beta_schedule,
             prediction_type=args.prediction_type,
         )
-        print(f'The number of steps is {args.ddpm_num_steps} and the beta schedule is {args.ddpm_beta_schedule}')
     else:
         noise_scheduler = DDPMScheduler(num_train_timesteps=args.ddpm_num_steps, beta_schedule=args.ddpm_beta_schedule)
 
@@ -378,6 +377,7 @@ def main(args):
         weight_decay=args.adam_weight_decay,
         eps=args.adam_epsilon,
     )
+    print(f'The optimizer parameters are: {optimizer}')
 
     # Get the datasets: you can either provide your own training and evaluation files (see below)
     # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
