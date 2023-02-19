@@ -432,7 +432,6 @@ def main(args):
         num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
         num_training_steps=(len(train_dataloader) * args.num_epochs),
     )
-    print(f'The lr scheduler parameters are: {args.lr_scheduler}, {args.lr_warmup_steps}')
 
     # Prepare everything with our `accelerator`.
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
@@ -493,18 +492,21 @@ def main(args):
     # Train!
     for epoch in range(first_epoch, args.num_epochs):
         model.train()
+        # create a progress bar
         progress_bar = tqdm(total=num_update_steps_per_epoch, disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
+        # iterate over the batches
         for step, batch in enumerate(train_dataloader):
             # Skip steps until we reach the resumed step
             if args.resume_from_checkpoint and epoch == first_epoch and step < resume_step:
                 if step % args.gradient_accumulation_steps == 0:
                     progress_bar.update(1)
                 continue
-
+            # get only the input images
             clean_images = batch["input"]
             # Sample noise that we'll add to the images
             noise = torch.randn(clean_images.shape).to(clean_images.device)
+            # batch size variable
             bsz = clean_images.shape[0]
             # Sample a random timestep for each image
             timesteps = torch.randint(
@@ -515,6 +517,7 @@ def main(args):
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
+            # gradient accumulation starts
             with accelerator.accumulate(model):
                 # Predict the noise residual
                 model_output = model(noisy_images, timesteps).sample
@@ -532,9 +535,9 @@ def main(args):
                     loss = loss.mean()
                 else:
                     raise ValueError(f"Unsupported prediction type: {args.prediction_type}")
-
+                # propagate the loss
                 accelerator.backward(loss)
-
+                # gradient clipping
                 if accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
@@ -547,7 +550,7 @@ def main(args):
                     ema_model.step(model.parameters())
                 progress_bar.update(1)
                 global_step += 1
-
+                # checkpointing (saving the model)
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
@@ -560,9 +563,11 @@ def main(args):
             if args.use_ema:
                 logs["ema_decay"] = ema_model.decay
             progress_bar.set_postfix(**logs)
+            # log in thensorboard or wandb the logs
             accelerator.log(logs, step=global_step)
+        # close the progress bar at the end of the epoch
         progress_bar.close()
-
+        # wait for all processes to finish before starting the next epoch
         accelerator.wait_for_everyone()
 
         # Generate sample images for visual inspection
