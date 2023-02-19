@@ -377,7 +377,6 @@ def main(args):
         weight_decay=args.adam_weight_decay,
         eps=args.adam_epsilon,
     )
-    print(f'The optimizer parameters are: {optimizer}')
 
     # Get the datasets: you can either provide your own training and evaluation files (see below)
     # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
@@ -408,11 +407,19 @@ def main(args):
     )
 
     def transforms(examples):
+        """Helper function to transform the dataset to the model input.
+
+        Args:
+            examples (dict): batch dictionary from the dataset
+
+        Returns:
+            dict: batch dictionary with the transformed images
+        """
         images = [augmentations(image.convert("RGB")) for image in examples["image"]]
         return {"input": images}
-
+    # information about the dataset length
     logger.info(f"Dataset size: {len(dataset)}")
-
+    # set the transform function
     dataset.set_transform(transforms)
     train_dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
@@ -425,6 +432,7 @@ def main(args):
         num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
         num_training_steps=(len(train_dataloader) * args.num_epochs),
     )
+    print(f'The lr scheduler parameters are: {lr_scheduler.get_last_lr()}')
 
     # Prepare everything with our `accelerator`.
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
