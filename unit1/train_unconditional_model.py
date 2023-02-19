@@ -34,6 +34,7 @@ from tqdm.auto import tqdm
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.13.0.dev0")
 
+# Setup accelerate logger
 logger = get_logger(__name__, log_level="INFO")
 
 
@@ -267,11 +268,13 @@ def get_full_repo_name(model_id: str, organization: Optional[str] = None, token:
     else:
         return f"{organization}/{model_id}"
 
-##define main function
 
 def main(args):
+    # define logging directory
     logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
+    # Initialise the accelerator.
+    # Options: gradient_accumulation_steps, mixed_precision, log_with
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
@@ -281,30 +284,31 @@ def main(args):
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", #format the log message. name is the logger name
+        datefmt="%m/%d/%Y %H:%M:%S", #date format (American style)
+        level=logging.INFO, # the minimum level of log message to be printed
     )
-    logger.info(accelerator.state, main_process_only=False)
+    # show the accelerator state
+    logger.info(accelerator.state, main_process_only=False) # does not matter if it is the main process or not
+
+    # set the level of verbosity for the datasets and diffusers libraries, depending on the process type
     if accelerator.is_local_main_process:
-        print('accelerate is local main process')
         datasets.utils.logging.set_verbosity_warning()
         diffusers.utils.logging.set_verbosity_info()
     else:
-        print('accelerate is not local main process')
         datasets.utils.logging.set_verbosity_error()
         diffusers.utils.logging.set_verbosity_error()
 
     # Handle the repository creation
     if accelerator.is_main_process:
-        if args.push_to_hub:
-            if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+        if args.push_to_hub: # if the user wants to push the model to the hub
+            if args.hub_model_id is None: # if a model id is not provided
+                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token) # create name from the output directory
             else:
-                repo_name = args.hub_model_id
-            create_repo(repo_name, exist_ok=True, token=args.hub_token)
-            repo = Repository(args.output_dir, clone_from=repo_name, token=args.hub_token)
-
+                repo_name = args.hub_model_id # else use the provided model id
+            create_repo(repo_name, exist_ok=True, token=args.hub_token) # create or continue if already exists
+            repo = Repository(args.output_dir, clone_from=repo_name, token=args.hub_token) # initialize a local clone of the repository
+            
             with open(os.path.join(args.output_dir, ".gitignore"), "w+") as gitignore:
                 if "step_*" not in gitignore:
                     gitignore.write("step_*\n")
@@ -353,6 +357,7 @@ def main(args):
         print('not using EMA')
 
     # Initialize the scheduler
+    # check if the scheduler accepts the prediction_type parameter
     accepts_prediction_type = "prediction_type" in set(inspect.signature(DDPMScheduler.__init__).parameters.keys())
     if accepts_prediction_type:
         print(f'The prediction type {args.prediction_type} is used')
@@ -361,6 +366,7 @@ def main(args):
             beta_schedule=args.ddpm_beta_schedule,
             prediction_type=args.prediction_type,
         )
+        print(f'The number of steps is {args.ddpm_num_steps} and the beta schedule is {args.ddpm_beta_schedule}')
     else:
         noise_scheduler = DDPMScheduler(num_train_timesteps=args.ddpm_num_steps, beta_schedule=args.ddpm_beta_schedule)
 
