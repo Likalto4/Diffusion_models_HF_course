@@ -432,7 +432,7 @@ def main(args):
         num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
         num_training_steps=(len(train_dataloader) * args.num_epochs),
     )
-    print(f'The lr scheduler parameters are: {lr_scheduler}')
+    print(f'The lr scheduler parameters are: {args.lr_scheduler}, {args.lr_warmup_steps}')
 
     # Prepare everything with our `accelerator`.
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
