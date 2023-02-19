@@ -1,10 +1,10 @@
 #Add repo path to the system path
 from pathlib import Path
 import os, sys
-repo_path= Path.cwd().resolve().parent.parent
-repo_list = os.listdir(repo_path)
-if '.gitignore' not in repo_list: raise Exception('The parent directory is not the root directory of the repository')
-sys.path.insert(0,str(repo_path))
+repo_path= Path.cwd().resolve()
+while '.gitignore' not in os.listdir(repo_path): # while not in the root of the repo
+    repo_path = repo_path.parent #go up one level
+sys.path.insert(0,str(repo_path)) if str(repo_path) not in sys.path else None
 
 #Libraries
 import yaml
@@ -48,8 +48,8 @@ def main():
     # Define data augmentations
     preprocess = Compose(
         [
-            Resize((config['processing']['resolution']), interpolation= InterpolationMode.BILINEAR), #getattr(InterpolationMode, config['processing']['interpolation'])),  # Smaller edge is resized to 256 preserving aspect ratio
-            CenterCrop((config['processing']['resolution'])),  # Center crop to the desired squared resolution
+            Resize(config['processing']['resolution'], interpolation= InterpolationMode.BILINEAR), #getattr(InterpolationMode, config['processing']['interpolation'])),  # Smaller edge is resized to 256 preserving aspect ratio
+            CenterCrop(config['processing']['resolution']),  # Center crop to the desired squared resolution
             RandomHorizontalFlip(),  # Horizontal randomly flip (data augmentation)
             ToTensor(),  # Convert to tensor (0, 1)
             Normalize([0.5], [0.5]),  # Map to (-1, 1) as a way to make data more similar to a Gaussian distribution
@@ -68,7 +68,6 @@ def main():
         """
         images = [preprocess(image.convert("RGB")) for image in batch_dict["image"]]
         return {"images": images}
-    
     #set the transform function to the dataset
     dataset.set_transform(transform)
     # Create the dataloader
@@ -78,7 +77,7 @@ def main():
 
     ### 2. Model definition
     model = UNet2DModel(
-        sample_size=(config['processing']['resolution']),  # the target image resolution
+        sample_size=config['processing']['resolution'],  # the target image resolution
         in_channels=config['model']['in_channels'],  # the number of input channels, 3 for RGB images
         out_channels=config['model']['out_channels'],  # the number of output channels
         layers_per_block=config['model']['layers_per_block'],  # how many ResNet layers to use per UNet block
@@ -124,18 +123,6 @@ def main():
     # print(f'The number of update steps per epoch is: {num_update_steps_per_epoch}\n')
     print(f'Total optimization steps: {max_train_steps}\n')
     
-    # separator
-    print('----------------------------------------\n')
-    print('the model hyperparameters are:\n')
-    # resolution
-    print(f'resolution: {config["processing"]["resolution"]}\n')
-    # gradient accumulation steps
-    print(f'gradient accumulation steps: {config["training"]["gradient_accumulation_steps"]}\n')
-    # learning rate
-    print(f'learning rate: {config["training"]["optimizer"]["learning_rate"]}\n')
-    # learning rate warmup steps
-    print(f'learning rate warmup steps: {config["training"]["lr_scheduler"]["num_warmup_steps"]}\n')
-
     # Training loop
     # Create a TB summary writer
     writer = SummaryWriter()
@@ -167,7 +154,7 @@ def main():
 
             #### if existant, gradient accumulation starts here #with accelerator.accumulate(model)
             # Get the model prediction, #### This part changes according to the prediction type (e.g. epsilon, sample, etc.)
-            noise_pred = model(noisy_images, timesteps, return_dict=False)[0] #first element is sample tensor
+            noise_pred = model(noisy_images, timesteps).sample # sample tensor
             # Calculate the loss
             loss = F.mse_loss(noise_pred, noise)
 
@@ -189,7 +176,7 @@ def main():
             pbar.update(1)
         #for each epoch, flush the writer (save the data)
         writer.flush()
-        # Close the progress bar
+        # Close the progress bar at the end of the epoch
         pbar.close()
     # Close the writer
     writer.close()
