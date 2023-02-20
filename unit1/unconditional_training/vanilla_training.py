@@ -174,7 +174,7 @@ def main():
             # unscale for gradient clipping
             scaler.unscale_(optimizer)
             # clip the gradients (clipping managed differently by accelerate)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['training']['gradient_clip']['max_norm'])
             # step the scaler
             scaler.step(optimizer)
             # Update the learning rate

@@ -1,5 +1,4 @@
-# All pipelines:`
-pipelines/
-
 # runs
 runs/
+# all pipelines
+outputs/
