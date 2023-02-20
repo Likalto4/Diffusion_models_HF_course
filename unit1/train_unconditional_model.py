@@ -356,8 +356,8 @@ def main(args):
     else:
         print('not using EMA')
 
-    # Initialize the scheduler
-    # check if the scheduler accepts the prediction_type parameter
+    # Initialize the noise scheduler
+    # check if the noise scheduler accepts the prediction_type parameter
     accepts_prediction_type = "prediction_type" in set(inspect.signature(DDPMScheduler.__init__).parameters.keys())
     if accepts_prediction_type:
         print(f'The prediction type {args.prediction_type} is used')
@@ -465,28 +465,28 @@ def main(args):
 
     # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
-        if args.resume_from_checkpoint != "latest":
+        if args.resume_from_checkpoint != "latest": # if the checkpoint path is given
             path = os.path.basename(args.resume_from_checkpoint)
         else:
-            # Get the most recent checkpoint
-            dirs = os.listdir(args.output_dir)
-            dirs = [d for d in dirs if d.startswith("checkpoint")]
-            dirs = sorted(dirs, key=lambda x: int(x.split("-")[1]))
-            path = dirs[-1] if len(dirs) > 0 else None
+            # Get the most recent checkpoint (latest)
+            dirs = os.listdir(args.output_dir) # go to the output directory
+            dirs = [d for d in dirs if d.startswith("checkpoint")] # get all the checkpoints
+            dirs = sorted(dirs, key=lambda x: int(x.split("-")[1])) # sort the checkpoints by the step number
+            path = dirs[-1] if len(dirs) > 0 else None # get the last checkpoint (largest step number)
 
-        if path is None:
+        if path is None: # if nothing was given
             accelerator.print(
                 f"Checkpoint '{args.resume_from_checkpoint}' does not exist. Starting a new training run."
             )
             args.resume_from_checkpoint = None
-        else:
+        else: # for the path obtained
             accelerator.print(f"Resuming from checkpoint {path}")
-            accelerator.load_state(os.path.join(args.output_dir, path))
-            global_step = int(path.split("-")[1])
+            accelerator.load_state(os.path.join(args.output_dir, path)) # load from the checkpoint file path
+            global_step = int(path.split("-")[1]) # get the global step number
 
-            resume_global_step = global_step * args.gradient_accumulation_steps
-            first_epoch = global_step // num_update_steps_per_epoch
-            resume_step = resume_global_step % (num_update_steps_per_epoch * args.gradient_accumulation_steps)
+            resume_global_step = global_step * args.gradient_accumulation_steps #updated global step
+            first_epoch = global_step // num_update_steps_per_epoch # define the first epoch after checkpointing
+            resume_step = resume_global_step % (num_update_steps_per_epoch * args.gradient_accumulation_steps) # define the step after checkpointing
     else:
         logger.info('Training from scratch')
     # Train!
