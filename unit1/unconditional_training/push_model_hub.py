@@ -2,12 +2,13 @@ from huggingface_hub import get_full_repo_name, HfApi, create_repo
 from huggingface_hub import ModelCard
 import yaml
 
-#define repo path
+#Add repo path to the system path
 from pathlib import Path
-import os
-repo_path= Path.cwd().resolve().parent.parent
-repo_list = os.listdir(repo_path)
-if '.gitignore' not in repo_list: raise Exception('repo_path is not the root directory of the repository')
+import os, sys
+repo_path= Path.cwd().resolve()
+while '.gitignore' not in os.listdir(repo_path): # while not in the root of the repo
+    repo_path = repo_path.parent #go up one level
+sys.path.insert(0,str(repo_path)) if str(repo_path) not in sys.path else None
 
 def main():
     #open config file

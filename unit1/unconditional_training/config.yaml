@@ -58,10 +58,10 @@ training:
 
 # 4. Saving and logging
 saving:
-  pipeline_name: 'butterfly_pipeline' # Name of the pipeline
+  pipeline_name: 'Butterflies_diffusion' # Name of the pipeline
   pipeline_dir: 'unit1/pipelines' # Directory to save pipeline to
   hf:
-    repo_name: 'Unconditional_Butterflies_diffusion' # Name of the repo
+    repo_name: 'Butterflies_diffusion' # Name of the repo
     model_card_path: 'unit1/unconditional_training/model_card.yaml' # Path to model card
 logging:
   logging_dir_name: 'logs' # Name of the logging directory

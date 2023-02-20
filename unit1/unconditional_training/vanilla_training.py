@@ -126,6 +126,8 @@ def main():
     # Training loop
     # Create a TB summary writer
     writer = SummaryWriter()
+    # scaler for mixed precision training (not needed for accelerate)
+    scaler = torch.cuda.amp.GradScaler()
     # Loop over the epochs
     for epoch in range(num_epochs):
         #set the model to training mode explicitly
@@ -152,25 +154,35 @@ def main():
             # Forward diffusion process: add noise to the clean images according to the noise magnitude at each timestep
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            #### if existant, gradient accumulation starts here #with accelerator.accumulate(model)
-            # Get the model prediction, #### This part changes according to the prediction type (e.g. epsilon, sample, etc.)
-            noise_pred = model(noisy_images, timesteps).sample # sample tensor
-            # Calculate the loss
-            loss = F.mse_loss(noise_pred, noise)
+            # auto cast for mixed precision training # not needed for accelerate
+            with torch.autocast(device_type= "cuda", dtype= torch.float16):
+                #### if existant, gradient accumulation starts here #with accelerator.accumulate(model)
+                # Get the model prediction, #### This part changes according to the prediction type (e.g. epsilon, sample, etc.)
+                noise_pred = model(noisy_images, timesteps).sample # sample tensor
+                # Calculate the loss
+                loss = F.mse_loss(noise_pred, noise)
 
             # Log the loss and logarithm loss to tensorboard
             global_step = epoch * len(train_dataloader) + step
             writer.add_scalar(tag= "Loss/train", scalar_value=loss, global_step= global_step) 
             writer.add_scalar(tag= "LogLoss/train", scalar_value= torch.log(loss), global_step= global_step)
             
-            # Backpropagate the loss
-            loss.backward(loss) #loss is used as a gradient, coming from the accumulation of the gradients of the loss function (not implemented yet)
+            # Backpropagate the loss (sacler not needed for accelerate)
+            scaler.scale(loss).backward() #loss is used as a gradient, coming from the accumulation of the gradients of the loss function (not implemented yet)
             # Update the parameters
-            optimizer.step()
+            #optimizer.step()
+            # unscale for gradient clipping
+            scaler.unscale_(optimizer)
+            # clip the gradients (clipping managed differently by accelerate)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # step the scaler
+            scaler.step(optimizer)
             # Update the learning rate
             lr_scheduler.step()
             # Zero the gradients
             optimizer.zero_grad()
+            # update the scaler (not needed for accelerate)
+            scaler.update()
             #### if existant, gradient accumulation ends here
             # Update the progress bar
             pbar.update(1)
