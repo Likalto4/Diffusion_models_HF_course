@@ -11,7 +11,7 @@ if '.gitignore' not in repo_list: raise Exception('The parent directory is not t
 
 def main():
     # name the model and get the full name in HF Hub
-    model_name = 'Unconditional_Butterflies_x64'
+    model_name = 'AccelerateTrial'
     hub_model_id = get_full_repo_name(model_name)
     #create repo in HF Hub
     create_repo(hub_model_id, exist_ok=True)

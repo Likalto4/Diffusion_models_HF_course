@@ -34,6 +34,7 @@ from tqdm.auto import tqdm
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.13.0.dev0")
 
+# Setup accelerate logger
 logger = get_logger(__name__, log_level="INFO")
 
 
@@ -267,11 +268,13 @@ def get_full_repo_name(model_id: str, organization: Optional[str] = None, token:
     else:
         return f"{organization}/{model_id}"
 
-##define main function
 
 def main(args):
+    # define logging directory
     logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
+    # Initialise the accelerator.
+    # Options: gradient_accumulation_steps, mixed_precision, log_with
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
@@ -281,11 +284,14 @@ def main(args):
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", #format the log message. name is the logger name
+        datefmt="%m/%d/%Y %H:%M:%S", #date format (American style)
+        level=logging.INFO, # the minimum level of log message to be printed
     )
-    logger.info(accelerator.state, main_process_only=False)
+    # show the accelerator state
+    logger.info(accelerator.state, main_process_only=False) # does not matter if it is the main process or not
+
+    # set the level of verbosity for the datasets and diffusers libraries, depending on the process type
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
         diffusers.utils.logging.set_verbosity_info()
@@ -295,20 +301,21 @@ def main(args):
 
     # Handle the repository creation
     if accelerator.is_main_process:
-        if args.push_to_hub:
-            if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+        if args.push_to_hub: # if the user wants to push the model to the hub
+            if args.hub_model_id is None: # if a model id is not provided
+                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token) # create name from the output directory
             else:
-                repo_name = args.hub_model_id
-            create_repo(repo_name, exist_ok=True, token=args.hub_token)
-            repo = Repository(args.output_dir, clone_from=repo_name, token=args.hub_token)
-
+                repo_name = args.hub_model_id # else use the provided model id
+            create_repo(repo_name, exist_ok=True, token=args.hub_token) # create or continue if already exists
+            repo = Repository(args.output_dir, clone_from=repo_name, token=args.hub_token) # initialize a local clone of the repository
+            
             with open(os.path.join(args.output_dir, ".gitignore"), "w+") as gitignore:
                 if "step_*" not in gitignore:
                     gitignore.write("step_*\n")
                 if "epoch_*" not in gitignore:
                     gitignore.write("epoch_*\n")
         elif args.output_dir is not None:
+            print('A local copy of the model will be saved in the output directory')
             os.makedirs(args.output_dir, exist_ok=True)
 
     # Initialize the model
@@ -338,6 +345,7 @@ def main(args):
 
     # Create EMA for the model.
     if args.use_ema:
+        print('using EMA')
         ema_model = EMAModel(
             model.parameters(),
             decay=args.ema_max_decay,
@@ -345,10 +353,14 @@ def main(args):
             inv_gamma=args.ema_inv_gamma,
             power=args.ema_power,
         )
+    else:
+        print('not using EMA')
 
-    # Initialize the scheduler
+    # Initialize the noise scheduler
+    # check if the noise scheduler accepts the prediction_type parameter
     accepts_prediction_type = "prediction_type" in set(inspect.signature(DDPMScheduler.__init__).parameters.keys())
     if accepts_prediction_type:
+        print(f'The prediction type {args.prediction_type} is used')
         noise_scheduler = DDPMScheduler(
             num_train_timesteps=args.ddpm_num_steps,
             beta_schedule=args.ddpm_beta_schedule,
@@ -395,11 +407,19 @@ def main(args):
     )
 
     def transforms(examples):
+        """Helper function to transform the dataset to the model input.
+
+        Args:
+            examples (dict): batch dictionary from the dataset
+
+        Returns:
+            dict: batch dictionary with the transformed images
+        """
         images = [augmentations(image.convert("RGB")) for image in examples["image"]]
         return {"input": images}
-
+    # information about the dataset length
     logger.info(f"Dataset size: {len(dataset)}")
-
+    # set the transform function
     dataset.set_transform(transforms)
     train_dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
@@ -425,8 +445,8 @@ def main(args):
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
-        run = os.path.split(__file__)[-1].split(".")[0]
-        accelerator.init_trackers(run)
+        run = os.path.split(__file__)[-1].split(".")[0] # gets the name of the script
+        accelerator.init_trackers(run) #sets name of script as run name (for tracker)
 
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -445,44 +465,48 @@ def main(args):
 
     # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
-        if args.resume_from_checkpoint != "latest":
+        if args.resume_from_checkpoint != "latest": # if the checkpoint path is given
             path = os.path.basename(args.resume_from_checkpoint)
         else:
-            # Get the most recent checkpoint
-            dirs = os.listdir(args.output_dir)
-            dirs = [d for d in dirs if d.startswith("checkpoint")]
-            dirs = sorted(dirs, key=lambda x: int(x.split("-")[1]))
-            path = dirs[-1] if len(dirs) > 0 else None
+            # Get the most recent checkpoint (latest)
+            dirs = os.listdir(args.output_dir) # go to the output directory
+            dirs = [d for d in dirs if d.startswith("checkpoint")] # get all the checkpoints
+            dirs = sorted(dirs, key=lambda x: int(x.split("-")[1])) # sort the checkpoints by the step number
+            path = dirs[-1] if len(dirs) > 0 else None # get the last checkpoint (largest step number)
 
-        if path is None:
+        if path is None: # if nothing was given
             accelerator.print(
                 f"Checkpoint '{args.resume_from_checkpoint}' does not exist. Starting a new training run."
             )
             args.resume_from_checkpoint = None
-        else:
+        else: # for the path obtained
             accelerator.print(f"Resuming from checkpoint {path}")
-            accelerator.load_state(os.path.join(args.output_dir, path))
-            global_step = int(path.split("-")[1])
+            accelerator.load_state(os.path.join(args.output_dir, path)) # load from the checkpoint file path
+            global_step = int(path.split("-")[1]) # get the global step number
 
-            resume_global_step = global_step * args.gradient_accumulation_steps
-            first_epoch = global_step // num_update_steps_per_epoch
-            resume_step = resume_global_step % (num_update_steps_per_epoch * args.gradient_accumulation_steps)
-
+            resume_global_step = global_step * args.gradient_accumulation_steps #updated global step
+            first_epoch = global_step // num_update_steps_per_epoch # define the first epoch after checkpointing
+            resume_step = resume_global_step % (num_update_steps_per_epoch * args.gradient_accumulation_steps) # define the step after checkpointing
+    else:
+        logger.info('Training from scratch')
     # Train!
     for epoch in range(first_epoch, args.num_epochs):
         model.train()
+        # create a progress bar
         progress_bar = tqdm(total=num_update_steps_per_epoch, disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
+        # iterate over the batches
         for step, batch in enumerate(train_dataloader):
             # Skip steps until we reach the resumed step
             if args.resume_from_checkpoint and epoch == first_epoch and step < resume_step:
                 if step % args.gradient_accumulation_steps == 0:
                     progress_bar.update(1)
                 continue
-
+            # get only the input images
             clean_images = batch["input"]
             # Sample noise that we'll add to the images
             noise = torch.randn(clean_images.shape).to(clean_images.device)
+            # batch size variable
             bsz = clean_images.shape[0]
             # Sample a random timestep for each image
             timesteps = torch.randint(
@@ -493,6 +517,7 @@ def main(args):
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
+            # gradient accumulation starts
             with accelerator.accumulate(model):
                 # Predict the noise residual
                 model_output = model(noisy_images, timesteps).sample
@@ -510,9 +535,9 @@ def main(args):
                     loss = loss.mean()
                 else:
                     raise ValueError(f"Unsupported prediction type: {args.prediction_type}")
-
+                # propagate the loss
                 accelerator.backward(loss)
-
+                # gradient clipping
                 if accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
@@ -525,20 +550,24 @@ def main(args):
                     ema_model.step(model.parameters())
                 progress_bar.update(1)
                 global_step += 1
-
+                # checkpointing (saving the model)
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
-
+            # logging
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
+            #in tensorboard
+            accelerator.log({"Loss/train": loss.detach().item()}, step=global_step)
             if args.use_ema:
                 logs["ema_decay"] = ema_model.decay
             progress_bar.set_postfix(**logs)
+            # log in thensorboard or wandb the logs
             accelerator.log(logs, step=global_step)
+        # close the progress bar at the end of the epoch
         progress_bar.close()
-
+        # wait for all processes to finish before starting the next epoch
         accelerator.wait_for_everyone()
 
         # Generate sample images for visual inspection

@@ -2,11 +2,15 @@
 
 # 1. Image processing
 processing:
+  # dataset name
+  dataset_name: "huggan/smithsonian_butterflies_subset"
   # image size or resolution to resize
-  resize_x: 64
-  resize_y: 64
+  resolution: 64
+  interpolation: "BILINEAR"
   # batch size for dataloader
-  batch_size: 64
+  batch_size: 32
+  # number of workers for dataloader
+  num_workers: 0 # 0 means no extra processes are used (run in main process)
 
 # 2. Model
 model:
@@ -26,9 +30,9 @@ model:
   - "DownBlock2D"
   - "DownBlock2D"
   - "AttnDownBlock2D"  # a ResNet downsampling block with spatial self-attention
-  - "AttnDownBlock2D"
+  - "DownBlock2D" # originaly a attention block, changed to a regular block
   up_block_types: !!python/tuple # Describes the type of block to use for upsampling
-  - "AttnUpBlock2D"
+  - "UpBlock2D"
   - "AttnUpBlock2D"  # a ResNet upsampling block with spatial self-attention
   - "UpBlock2D"
   - "UpBlock2D"  # a regular ResNet upsampling block
@@ -38,20 +42,38 @@ model:
 # 3. Training
 training:
   num_epochs: 50 # Number of epochs to train for
+  gradient_accumulation:
+    steps: 1 # Number of gradient accumulation steps
+  mixed_precision:
+    type: 'no'
+  gradient_clip:
+    max_norm: 1.0 # Maximum norm for gradient clipping
   optimizer:
-    learning_rate: 4.0e-4 # Learning rate for the optimizer
+    learning_rate: 1.0e-4 # Learning rate for the optimizer
     beta_1: 0.95 # Beta 1 for the AdamW optimizer
     beta_2: 0.999 # Beta 2 for the AdamW optimizer
     weight_decay: 1.0e-6
     eps: 1.0e-8
+  lr_scheduler:
+    name: "cosine"
+    num_warmup_steps: 500
   noise_scheduler:
     num_train_timesteps: 1000
-    beta_schedule: "squaredcos_cap_v2"
+    beta_schedule: "linear" # originally using "squaredcos_cap_v2", changed to linear
 
 # 4. Saving and logging
 saving:
-  pipeline_name: 'butterfly_pipeline' # Name of the pipeline
-  pipeline_dir: 'unit1/pipelines' # Directory to save pipeline to
+  local:
+    outputs_dir: 'unit1/outputs' # Parent directory for saving outputs
+    pipeline_name: 'Butterflies_diffusion_100' # Name of the pipeline
+    checkpoint_frequency: 1500 # How often to save checkpoints (in steps)
+    saving_frequency: 10 # How often to save the model (in epochs)
   hf:
-    repo_name: 'Unconditional_Butterflies_diffusion' # Name of the repo
+    repo_name: 'Butterflies_diffusion' # Name of the HF repo
     model_card_path: 'unit1/unconditional_training/model_card.yaml' # Path to model card
+logging:
+  logger_name: 'tensorboard' # Name of the logger
+  dir_name: 'logs' # Name of the logging directory
+  images:
+    freq_epochs: 10 # How often to save images (in epochs)
+    batch_size: 8 # Batch size for image generation
