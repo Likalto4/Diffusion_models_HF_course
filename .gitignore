@@ -2,3 +2,6 @@
 runs/
 # all pipelines
 outputs/
+
+#mnist
+mnist/
