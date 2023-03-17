@@ -1,0 +1,8 @@
+[
+    {
+        "instance_prompt": "rikimon person",
+        "class_prompt": "person",
+        "instance_data_dir": "/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/dreambooth/data/riki",
+        "class_data_dir": "/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/dreambooth/data/person"
+    }
+]

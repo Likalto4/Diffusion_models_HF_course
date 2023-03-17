@@ -5,3 +5,7 @@ outputs/
 
 #mnist
 mnist/
+
+# data
+data/
+weights/
