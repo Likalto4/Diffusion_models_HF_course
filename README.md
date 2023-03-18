@@ -1,2 +1,8 @@
-# Diffusion_models_HF_course
-Hugging face DIffusion models course notebooks and additional documentation
+# Diffusion models course
+# ======================
+#
+This repository contains the material for the diffusion models course from Hugging Face. <br>
+Hugging Face has impulsed the diffusion models research with its [diffusers libraries](https://huggingface.co/docs/diffusers/index), as well as pretrained models. <br>
+The course is available on [Github](https://github.com/huggingface/diffusion-models-class).<br>
+
+The materiales in this repository included implementation for medical image generation, specifically for mammographies. <br>
