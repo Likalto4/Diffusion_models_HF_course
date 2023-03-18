@@ -13,8 +13,8 @@ accelerate launch train_dreambooth.py \
   --class_data_dir=$CLASS_DIR \
   --output_dir=$OUTPUT_DIR \
   --with_prior_preservation --prior_loss_weight=1.0 \
-  --instance_prompt=$INSTANCE_PROMPT \
-  --class_prompt=$CLASS_PROMPT \
+  --instance_prompt="$INSTANCE_PROMPT" \
+  --class_prompt="$CLASS_PROMPT" \
   --seed=1337 \
   --resolution=512 \
   --train_batch_size=1 \
@@ -30,4 +30,4 @@ accelerate launch train_dreambooth.py \
   --num_validation_images=4 \
   --validation_steps=500 \
   --report_to="wandb" \
-  --validation_prompt=$INSTANCE_PROMPT
+  --validation_prompt="$INSTANCE_PROMPT"

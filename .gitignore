@@ -12,3 +12,6 @@ weights/
 
 # results
 results/
+
+# wandb
+wandb/
