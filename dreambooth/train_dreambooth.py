@@ -832,7 +832,7 @@ def main(args):
         instance_data_root=args.instance_data_dir, # folder with images
         instance_prompt=args.instance_prompt, # promt for images
         class_data_root=args.class_data_dir if args.with_prior_preservation else None, # prior images
-        class_prompt=args.class_prompt,
+        class_prompt=args.class_prompt, # class (prior) promt
         class_num=args.num_class_images,
         tokenizer=tokenizer,
         size=args.resolution,
@@ -850,15 +850,15 @@ def main(args):
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if args.max_train_steps is None:
+    if args.max_train_steps is None: # if not maximum number of steps is given
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
         overrode_max_train_steps = True
 
     lr_scheduler = get_scheduler(
         args.lr_scheduler,
         optimizer=optimizer,
-        num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
-        num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+        num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps, # if acc steps are present, we need more warm up
+        num_training_steps=args.max_train_steps * args.gradient_accumulation_steps, # if more warm up is given, we need more training steps too.
         num_cycles=args.lr_num_cycles,
         power=args.lr_power,
     )
@@ -999,7 +999,7 @@ def main(args):
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
                 accelerator.backward(loss)
-                if accelerator.sync_gradients:
+                if accelerator.sync_gradients: # clip gradients seperately, as they cannot be clipped together
                     params_to_clip = (
                         itertools.chain(unet.parameters(), text_encoder.parameters())
                         if args.train_text_encoder
@@ -1016,22 +1016,23 @@ def main(args):
                 global_step += 1
 
                 if accelerator.is_main_process:
-                    if global_step % args.checkpointing_steps == 0:
+                    if global_step % args.checkpointing_steps == 0: # checkpointing
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
-                    if args.validation_prompt is not None and global_step % args.validation_steps == 0:
+                    if args.validation_prompt is not None and global_step % args.validation_steps == 0: # log images to check progress
                         log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch)
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
-            if global_step >= args.max_train_steps:
+            if global_step >= args.max_train_steps: # end training if max steps are reached
                 break
 
     # Create the pipeline using using the trained modules and save it.
+    # This happends only at the end of the training to avoid problem wuth the mixed precision training.
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         pipeline = DiffusionPipeline.from_pretrained(
