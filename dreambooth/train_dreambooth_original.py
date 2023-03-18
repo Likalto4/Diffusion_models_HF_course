@@ -466,26 +466,26 @@ class DreamBoothDataset(Dataset):
         if not self.instance_data_root.exists():
             raise ValueError(f"Instance {self.instance_data_root} images root doesn't exists.")
 
-        self.instance_images_path = list(Path(instance_data_root).iterdir()) # get all the images paths in the folder
-        self.num_instance_images = len(self.instance_images_path) # number of images in the folder
-        self.instance_prompt = instance_prompt # prompt for the instance images
-        self._length = self.num_instance_images # length of the dataset
+        self.instance_images_path = list(Path(instance_data_root).iterdir())
+        self.num_instance_images = len(self.instance_images_path)
+        self.instance_prompt = instance_prompt
+        self._length = self.num_instance_images
 
-        if class_data_root is not None: # if there are prior images
+        if class_data_root is not None:
             self.class_data_root = Path(class_data_root)
-            self.class_data_root.mkdir(parents=True, exist_ok=True) # create the folder if it doesn't exist
-            self.class_images_path = list(self.class_data_root.iterdir()) # get paths of all the class images
-            if class_num is not None: # class number. This can vary if there are more images in the folder and we only want to use a subset of them
+            self.class_data_root.mkdir(parents=True, exist_ok=True)
+            self.class_images_path = list(self.class_data_root.iterdir())
+            if class_num is not None:
                 self.num_class_images = min(len(self.class_images_path), class_num)
             else:
                 self.num_class_images = len(self.class_images_path)
-            self._length = max(self.num_class_images, self.num_instance_images) # length of the dataset will be the max of the number of instance images and the number of class images
+            self._length = max(self.num_class_images, self.num_instance_images)
             self.class_prompt = class_prompt
         else:
             self.class_data_root = None
 
-        self.image_transforms = transforms.Compose( # classic image transforms for diffusion models
-            [ # resize images to squares with ration preservation, then normalize -1 to 1
+        self.image_transforms = transforms.Compose(
+            [
                 transforms.Resize(size, interpolation=transforms.InterpolationMode.BILINEAR),
                 transforms.CenterCrop(size) if center_crop else transforms.RandomCrop(size),
                 transforms.ToTensor(),
@@ -494,32 +494,24 @@ class DreamBoothDataset(Dataset):
         )
 
     def __len__(self):
-        return self._length # length of the dataset is the max of the number of instance images and the number of class images
+        return self._length
 
     def __getitem__(self, index):
-        """returns example dictionary
-
-        Args:
-            index (int): index of the example
-
-        Returns:
-            dict: example dictionary with keys "instance_images", "instance_prompt_ids", "class_images", "class_prompt_ids"
-        """
         example = {}
-        instance_image = Image.open(self.instance_images_path[index % self.num_instance_images]) # instance images as module in case there are more class images than instance images
-        if not instance_image.mode == "RGB": # convert to RGB if not already
+        instance_image = Image.open(self.instance_images_path[index % self.num_instance_images])
+        if not instance_image.mode == "RGB":
             instance_image = instance_image.convert("RGB")
-        example["instance_images"] = self.image_transforms(instance_image) # instance images
-        example["instance_prompt_ids"] = self.tokenizer( # tokenize the prompt
+        example["instance_images"] = self.image_transforms(instance_image)
+        example["instance_prompt_ids"] = self.tokenizer(
             self.instance_prompt,
-            truncation=True, # max 77 tokens
-            padding="max_length", # pad to max length
+            truncation=True,
+            padding="max_length",
             max_length=self.tokenizer.model_max_length,
             return_tensors="pt",
         ).input_ids
 
-        if self.class_data_root: # if there are class images
-            class_image = Image.open(self.class_images_path[index % self.num_class_images]) # same idea as above
+        if self.class_data_root:
+            class_image = Image.open(self.class_images_path[index % self.num_class_images])
             if not class_image.mode == "RGB":
                 class_image = class_image.convert("RGB")
             example["class_images"] = self.image_transforms(class_image)
@@ -557,17 +549,9 @@ def collate_fn(examples, with_prior_preservation=False):
 
 
 class PromptDataset(Dataset):
-    """A simple dataset to prepare the prompts to generate class images on multiple GPUs.
-    The get item trturns example dictionaty with the prompt and the index of the example.
-    """
+    "A simple dataset to prepare the prompts to generate class images on multiple GPUs."
 
     def __init__(self, prompt, num_samples):
-        """init with promt and number of samples
-
-        Args:
-            prompt (str): text prompt
-            num_samples (int): num of samples
-        """
         self.prompt = prompt
         self.num_samples = num_samples
 
@@ -592,16 +576,16 @@ def get_full_repo_name(model_id: str, organization: Optional[str] = None, token:
 
 
 def main(args):
-    logging_dir = Path(args.output_dir, args.logging_dir) # path for logging
+    logging_dir = Path(args.output_dir, args.logging_dir)
 
     accelerator_project_config = ProjectConfiguration(total_limit=args.checkpoints_total_limit)
 
-    accelerator = Accelerator( # start accelerator
+    accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mixed_precision=args.mixed_precision, 
-        log_with=args.report_to, # logger (tb or wandb)
-        logging_dir=logging_dir, # defined above
-        project_config=accelerator_project_config, # project config defined above
+        mixed_precision=args.mixed_precision,
+        log_with=args.report_to,
+        logging_dir=logging_dir,
+        project_config=accelerator_project_config,
     )
 
     if args.report_to == "wandb":
@@ -637,13 +621,12 @@ def main(args):
 
     # Generate class images if prior preservation is enabled.
     if args.with_prior_preservation:
-        class_images_dir = Path(args.class_data_dir) # get path of class images
-        if not class_images_dir.exists(): # create folder if not exists
+        class_images_dir = Path(args.class_data_dir)
+        if not class_images_dir.exists():
             class_images_dir.mkdir(parents=True)
-        cur_class_images = len(list(class_images_dir.iterdir())) # count how many images there are
+        cur_class_images = len(list(class_images_dir.iterdir()))
 
-        if cur_class_images < args.num_class_images: # if there are less images than needed
-            # define dtype for prior generation
+        if cur_class_images < args.num_class_images:
             torch_dtype = torch.float16 if accelerator.device.type == "cuda" else torch.float32
             if args.prior_generation_precision == "fp32":
                 torch_dtype = torch.float32
@@ -652,31 +635,33 @@ def main(args):
             elif args.prior_generation_precision == "bf16":
                 torch_dtype = torch.bfloat16
             pipeline = DiffusionPipeline.from_pretrained(
-                args.pretrained_model_name_or_path, # from same pretrained model as main model
+                args.pretrained_model_name_or_path,
                 torch_dtype=torch_dtype,
-                safety_checker=None, # no safety checker
-                revision=args.revision, # The specific model version to use
+                safety_checker=None,
+                revision=args.revision,
             )
             pipeline.set_progress_bar_config(disable=True)
 
-            num_new_images = args.num_class_images - cur_class_images # number of images still needed
+            num_new_images = args.num_class_images - cur_class_images
             logger.info(f"Number of class images to sample: {num_new_images}.")
 
-            sample_dataset = PromptDataset(args.class_prompt, num_new_images) # define prompt dataset, returns prompt and index as item
+            sample_dataset = PromptDataset(args.class_prompt, num_new_images)
             sample_dataloader = torch.utils.data.DataLoader(sample_dataset, batch_size=args.sample_batch_size)
 
-            sample_dataloader = accelerator.prepare(sample_dataloader) # dataloader for accelerator
-            pipeline.to(accelerator.device) # send pipeline to accelerator device
+            sample_dataloader = accelerator.prepare(sample_dataloader)
+            pipeline.to(accelerator.device)
 
-            for example in tqdm(sample_dataloader, desc="Generating class images", disable=not accelerator.is_local_main_process):
-                images = pipeline(example["prompt"]).images # generate image(s) from prompt
+            for example in tqdm(
+                sample_dataloader, desc="Generating class images", disable=not accelerator.is_local_main_process
+            ):
+                images = pipeline(example["prompt"]).images
 
-                for i, image in enumerate(images): # for each image in the batch
-                    hash_image = hashlib.sha1(image.tobytes()).hexdigest() # create hash as unique identifier
+                for i, image in enumerate(images):
+                    hash_image = hashlib.sha1(image.tobytes()).hexdigest()
                     image_filename = class_images_dir / f"{example['index'][i] + cur_class_images}-{hash_image}.jpg"
                     image.save(image_filename)
 
-            del pipeline # free memory when done
+            del pipeline
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
@@ -695,7 +680,7 @@ def main(args):
                     gitignore.write("step_*\n")
                 if "epoch_*" not in gitignore:
                     gitignore.write("epoch_*\n")
-        elif args.output_dir is not None: # create output directory if it doesn't exist
+        elif args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
 
     # Load the tokenizer
@@ -709,7 +694,7 @@ def main(args):
             use_fast=False,
         )
 
-    # import correct text encoder class: only ROBERTA or CLIP
+    # import correct text encoder class
     text_encoder_cls = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path, args.revision)
 
     # Load scheduler and models
@@ -753,12 +738,10 @@ def main(args):
         accelerator.register_save_state_pre_hook(save_model_hook)
         accelerator.register_load_state_pre_hook(load_model_hook)
 
-    # freeze models
     vae.requires_grad_(False)
-    if not args.train_text_encoder: # freeze text encoder if not training it
+    if not args.train_text_encoder:
         text_encoder.requires_grad_(False)
 
-    # optimize GPU memory usage and more
     if args.enable_xformers_memory_efficient_attention:
         if is_xformers_available():
             import xformers
@@ -771,6 +754,7 @@ def main(args):
             unet.enable_xformers_memory_efficient_attention()
         else:
             raise ValueError("xformers is not available. Make sure it is installed correctly")
+
     if args.gradient_checkpointing:
         unet.enable_gradient_checkpointing()
         if args.train_text_encoder:
@@ -781,10 +765,12 @@ def main(args):
         "Please make sure to always have all model weights in full float32 precision when starting training - even if"
         " doing mixed precision training. copy of the weights should still be float32."
     )
+
     if accelerator.unwrap_model(unet).dtype != torch.float32:
         raise ValueError(
             f"Unet loaded as datatype {accelerator.unwrap_model(unet).dtype}. {low_precision_error_string}"
         )
+
     if args.train_text_encoder and accelerator.unwrap_model(text_encoder).dtype != torch.float32:
         raise ValueError(
             f"Text encoder loaded as datatype {accelerator.unwrap_model(text_encoder).dtype}."
@@ -795,14 +781,13 @@ def main(args):
     # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
     if args.allow_tf32:
         torch.backends.cuda.matmul.allow_tf32 = True
-    # scaling learning rate by number of GPUs and gradient accumulation steps
+
     if args.scale_lr:
         args.learning_rate = (
             args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
         )
 
-    # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs # bits and bytes-enebled
-    # This changes the optimizer class
+    # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
     if args.use_8bit_adam:
         try:
             import bitsandbytes as bnb
@@ -816,7 +801,7 @@ def main(args):
         optimizer_class = torch.optim.AdamW
 
     # Optimizer creation
-    params_to_optimize = ( # unet and text encoder or une only
+    params_to_optimize = (
         itertools.chain(unet.parameters(), text_encoder.parameters()) if args.train_text_encoder else unet.parameters()
     )
     optimizer = optimizer_class(
@@ -829,9 +814,9 @@ def main(args):
 
     # Dataset and DataLoaders creation:
     train_dataset = DreamBoothDataset(
-        instance_data_root=args.instance_data_dir, # folder with images
-        instance_prompt=args.instance_prompt, # promt for images
-        class_data_root=args.class_data_dir if args.with_prior_preservation else None, # prior images
+        instance_data_root=args.instance_data_dir,
+        instance_prompt=args.instance_prompt,
+        class_data_root=args.class_data_dir if args.with_prior_preservation else None,
         class_prompt=args.class_prompt,
         class_num=args.num_class_images,
         tokenizer=tokenizer,
