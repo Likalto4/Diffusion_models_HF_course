@@ -9,3 +9,6 @@ mnist/
 # data
 data/
 weights/
+
+# results
+results/
