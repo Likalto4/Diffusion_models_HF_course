@@ -22,7 +22,6 @@ import hashlib
 import itertools
 import logging
 import math
-import os
 import warnings
 from pathlib import Path
 from typing import Optional
@@ -51,6 +50,7 @@ from diffusers import (
     DiffusionPipeline,
     DPMSolverMultistepScheduler,
     UNet2DConditionModel,
+    DDIMScheduler,
 )
 from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version, is_wandb_available
@@ -138,6 +138,12 @@ def parse_args(input_args=None):
         default=None,
         required=True,
         help="Path to pretrained model or model identifier from huggingface.co/models.",
+    )
+    parser.add_argument(
+        "--pretrained_vae_name_or_path",
+        type=str,
+        default=None,
+        help="Path to pretrained vae or vae identifier from huggingface.co/models.",
     )
     parser.add_argument(
         "--revision",
@@ -657,10 +663,17 @@ def main(args):
                 torch_dtype = torch.bfloat16
             pipeline = DiffusionPipeline.from_pretrained(
                 args.pretrained_model_name_or_path, # from same pretrained model as main model
+                vae=AutoencoderKL.from_pretrained(
+                    args.pretrained_vae_name_or_path or args.pretrained_model_name_or_path,
+                    subfolder=None if args.pretrained_vae_name_or_path else "vae",
+                    revision=None if args.pretrained_vae_name_or_path else args.revision,
+                    torch_dtype=torch_dtype
+                ), 
                 torch_dtype=torch_dtype,
                 safety_checker=None, # no safety checker
                 revision=args.revision, # The specific model version to use
             )
+            pipeline.scheduler = DDIMScheduler.from_config(pipeline.scheduler.config)
             pipeline.set_progress_bar_config(disable=True)
 
             num_new_images = args.num_class_images - cur_class_images # number of images still needed
@@ -673,7 +686,7 @@ def main(args):
             pipeline.to(accelerator.device) # send pipeline to accelerator device
 
             for example in tqdm(sample_dataloader, desc="Generating class images", disable=not accelerator.is_local_main_process):
-                images = pipeline(example["prompt"]).images # generate image(s) from prompt
+                images = pipeline(example["prompt"], num_inference_steps=20).images # generate image(s) from prompt
 
                 for i, image in enumerate(images): # for each image in the batch
                     hash_image = hashlib.sha1(image.tobytes()).hexdigest() # create hash as unique identifier
@@ -1043,6 +1056,12 @@ def main(args):
             args.pretrained_model_name_or_path,
             unet=accelerator.unwrap_model(unet),
             text_encoder=accelerator.unwrap_model(text_encoder),
+            vae=AutoencoderKL.from_pretrained(
+                args.pretrained_vae_name_or_path or args.pretrained_model_name_or_path,
+                subfolder=None if args.pretrained_vae_name_or_path else "vae",
+                revision=None if args.pretrained_vae_name_or_path else args.revision,
+            ),
+            safety_checker=None,
             revision=args.revision,
         )
         pipeline.save_pretrained(args.output_dir)
