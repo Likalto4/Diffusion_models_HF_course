@@ -34,4 +34,5 @@ accelerate launch train_dreambooth.py \
   --validation_steps=500 \
   --report_to="wandb" \
   --checkpointing_steps=2000 \
-  --validation_prompt="$INSTANCE_PROMPT"
+  --validation_prompt="$INSTANCE_PROMPT" \
+  --enable_xformers_memory_efficient_attention
