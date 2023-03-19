@@ -1,11 +1,14 @@
 #!/bin/bash
 
 MODEL_NAME="runwayml/stable-diffusion-v1-5"
-OUTPUT_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/results/cansu_specialvaetrain"
+OUTPUT_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/results/test"
 INSTANCE_DATA_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/data/cansu"
 CLASS_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/data/person2"
 INSTANCE_PROMPT="photo of ukj person"
 CLASS_PROMPT="photo of a person"
+# WANDB_START_METHOD="thread"
+# WANDB_DISABLE_SERVICE=true
+# WANDB_CONSOLE="off"
 
 accelerate launch train_dreambooth.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
@@ -28,7 +31,7 @@ accelerate launch train_dreambooth.py \
   --learning_rate=1e-6 \
   --lr_scheduler="constant" \
   --lr_warmup_steps=0 \
-  --max_train_steps=2500 \
+  --max_train_steps=20 \
   --num_class_images=12 \
   --num_validation_images=4 \
   --validation_steps=500 \
