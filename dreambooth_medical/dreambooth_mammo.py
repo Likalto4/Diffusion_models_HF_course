@@ -4,7 +4,15 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 
-import os
+#Add repo path to the system path
+from pathlib import Path
+import os, sys
+repo_path= Path.cwd().resolve()
+while '.gitignore' not in os.listdir(repo_path): # while not in the root of the repo
+    repo_path = repo_path.parent #go up one level
+sys.path.insert(0,str(repo_path)) if str(repo_path) not in sys.path else None
+exp_path = Path.cwd().resolve() # experiment path
+# visible GPUs
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
@@ -71,6 +79,7 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
         vae=vae,
         revision=args.revision,
         torch_dtype=weight_dtype,
+        safety_checker=None,
     )
     pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
     pipeline = pipeline.to(accelerator.device)
@@ -911,7 +920,9 @@ def main(args):
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
-        accelerator.init_trackers("dreambooth_medical", config=vars(args))
+        run = os.path.split(__file__)[-1].split(".")[0]
+        accelerator.init_trackers("dreambooth_medical", config=vars(args)) # add args to wandb
+        wandb.save(str(exp_path / f"{run}.sh")) if args.report_to=="wandb" else None
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
