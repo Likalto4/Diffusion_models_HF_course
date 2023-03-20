@@ -1,7 +1,7 @@
 #!/bin/bash
 
 MODEL_NAME="runwayml/stable-diffusion-v1-5"
-OUTPUT_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/results/mammo_bs8_GS"
+OUTPUT_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/results/mammo_bs1_ga-8_GS"
 INSTANCE_DATA_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/data/breast10p_RGB"
 INSTANCE_PROMPT="a mammogram"
 MAX_TRAIN_STEPS=2300
@@ -19,12 +19,12 @@ accelerate launch dreambooth_mammo.py \
   --instance_prompt="$INSTANCE_PROMPT" \
   --seed=1337 \
   --resolution=512 \
-  --train_batch_size=8 \
+  --train_batch_size=1 \
   --train_text_encoder \
   --mixed_precision="fp16" \
   --use_8bit_adam \
   --set_grads_to_none \
-  --gradient_accumulation_steps=1 --gradient_checkpointing \
+  --gradient_accumulation_steps=8 --gradient_checkpointing \
   --learning_rate=1e-6 \
   --lr_scheduler="constant" \
   --lr_warmup_steps=0 \
