@@ -4,15 +4,16 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
 
+#Add repo path to the system path
+from pathlib import Path
+import os, sys
+repo_path= Path.cwd().resolve()
+while '.gitignore' not in os.listdir(repo_path): # while not in the root of the repo
+    repo_path = repo_path.parent #go up one level
+sys.path.insert(0,str(repo_path)) if str(repo_path) not in sys.path else None
+exp_path = Path.cwd().resolve() # experiment path
+# Visible GPU
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
@@ -160,6 +161,13 @@ def parse_args(input_args=None):
         type=str,
         default=None,
         help="Pretrained tokenizer name or path if not the same as model_name",
+    )
+    parser.add_argument(
+        "--project_name",
+        type=str,
+        default=None,
+        required=True,
+        help="The project name for the logging",
     )
     parser.add_argument(
         "--instance_data_dir",
@@ -917,11 +925,14 @@ def main(args):
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     # Afterwards we recalculate our number of training epochs
     args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
-
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
-        accelerator.init_trackers("dreambooth", config=vars(args))
+        # get running file name
+        run = os.path.basename(__file__).split(".")[0]
+        accelerator.init_trackers(args.project_name, config=vars(args))
+        wandb.save(str(exp_path / f'{run}.sh')) if args.report_to=='wandb' else None # save bash script
+        
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
