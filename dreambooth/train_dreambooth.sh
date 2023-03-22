@@ -43,3 +43,4 @@ accelerate launch train_dreambooth.py \
   --enable_xformers_memory_efficient_attention \
   --use_8bit_adam \
   --set_grads_to_none \
+  --dataloader_num_workers=8 \
