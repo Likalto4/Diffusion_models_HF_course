@@ -1,8 +1,8 @@
 #!/bin/bash
 
 MODEL_NAME="runwayml/stable-diffusion-v1-5"
-OUTPUT_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/results/cansumodel"
-INSTANCE_DATA_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/data/cansu"
+OUTPUT_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/results/rikimodeldeepspeed"
+INSTANCE_DATA_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/data/riki"
 CLASS_DIR="/home/ricardo/master_thesis/extra_materials/Diffusion_models_HF_course/data/person"
 INSTANCE_PROMPT="photo of ukj person"
 CLASS_PROMPT="photo of a person"
@@ -12,6 +12,8 @@ MAX_TRAIN_STEPS=2500
 # WANDB_DISABLE_SERVICE=true
 # WANDB_CONSOLE="off"
 
+#--gradient_checkpointing \
+#--use_8bit_adam \
 
 accelerate launch train_dreambooth.py \
   --project_name=$PROJECT_NAME \
@@ -30,7 +32,7 @@ accelerate launch train_dreambooth.py \
   --train_text_encoder \
   --train_batch_size=1 \
   --mixed_precision="fp16" \
-  --gradient_accumulation_steps=1 --gradient_checkpointing \
+  --gradient_accumulation_steps=1 \
   --learning_rate=1e-6 \
   --lr_scheduler="constant" \
   --lr_warmup_steps=0 \
@@ -41,6 +43,5 @@ accelerate launch train_dreambooth.py \
   --checkpointing_steps=2000 \
   --validation_prompt="$INSTANCE_PROMPT" \
   --enable_xformers_memory_efficient_attention \
-  --use_8bit_adam \
   --set_grads_to_none \
   --dataloader_num_workers=8 \
